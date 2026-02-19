@@ -23,6 +23,7 @@ from config import TELEGRAM_BOT_TOKEN
 from database import DatabaseManager
 from modules.ai_assistant import AIAssistant
 from modules.ai_teacher import AITeacher
+from modules.web_search import WebSearchAssistant
 from modules.notes_manager import NotesManager
 from modules.schedule_manager import ScheduleManager
 from utils.helpers import format_note_list, format_task_list, format_date
@@ -61,6 +62,12 @@ class TelegramBot:
         self.notes_manager = notes_manager
         self.schedule_manager = schedule_manager
         self.ai_teacher = ai_teacher
+
+        # Web Search Asistanı (AI asistan modelini kullan)
+        self.web_search_assistant = None
+        if ai_assistant and ai_assistant.is_available():
+            self.web_search_assistant = WebSearchAssistant(ai_assistant.model)
+            logger.info("✅ Web Search Asistanı başlatıldı")
         
         # Görüntü işleme modülleri (eğer API token varsa)
         self.image_upscaler = None
@@ -1172,16 +1179,26 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         
         # Normal mesaj ise AI'ya gönder
         try:
-            # "Yazıyor..." göstergesi
-            await bot_context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-            
-            ai_response = self.ai_assistant.simple_chat(
-                user_message, 
-                context=self.MESSAGE_HANDLER_CONTEXT
-            )
-            
+            # Web search gerekiyor mu?
+            if (self.web_search_assistant and
+                    self.web_search_assistant.is_available() and
+                    self.web_search_assistant.needs_web_search(user_message)):
+                # "Araştırıyorum..." mesajı
+                thinking_msg = await update.message.reply_text("🔍 İnternetten araştırıyorum...")
+                try:
+                    ai_response = await self.web_search_assistant.search_and_answer(user_message)
+                finally:
+                    await thinking_msg.delete()
+            else:
+                # "Yazıyor..." göstergesi
+                await bot_context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+                ai_response = self.ai_assistant.simple_chat(
+                    user_message,
+                    context=self.MESSAGE_HANDLER_CONTEXT
+                )
+
             await update.message.reply_text(ai_response)
-            
+
             logger.info(f"Normal mesaj işlendi - User: {user_id}")
             
         except Exception as e:
