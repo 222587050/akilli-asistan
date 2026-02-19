@@ -133,6 +133,36 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
             logger.error(f"AI sohbet hatası: {e}")
             return f"Üzgünüm, bir hata oluştu: {str(e)}"
     
+    def simple_chat(self, message: str, context: str = None) -> str:
+        """
+        Basit sohbet (kullanıcı ID'si olmadan)
+        Geçmiş kaydedilmez, sadece tek seferlik yanıt üretilir
+        
+        Args:
+            message: Kullanıcı mesajı
+            context: Ek bağlam bilgisi (opsiyonel)
+            
+        Returns:
+            AI yanıtı
+        """
+        if not self.is_available():
+            return "Üzgünüm, AI asistan şu anda kullanılamıyor."
+        
+        try:
+            # Context varsa mesaja ekle
+            if context:
+                full_message = f"{context}\n\nKullanıcı sorusu: {message}"
+            else:
+                full_message = message
+            
+            # Yanıt oluştur (geçmiş olmadan)
+            response = self.model.generate_content(full_message)
+            return response.text
+            
+        except Exception as e:
+            logger.error(f"Basit sohbet hatası: {e}")
+            return "Üzgünüm, şu anda yanıt veremiyorum. Lütfen daha sonra tekrar deneyin."
+    
     def summarize_notes(self, notes_content: str) -> str:
         """
         Notları özetle
