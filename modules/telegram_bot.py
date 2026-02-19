@@ -74,6 +74,15 @@ class TelegramBot:
         # Callback handler (inline butonlar için)
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
         
+        # DİKKAT: Bu handler'ı tüm diğer handler'lardan SONRA ekle!
+        # Çünkü diğer komutlar önce işlenmeli
+        self.application.add_handler(
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND,  # Komut olmayan text mesajlar
+                self.handle_message
+            )
+        )
+        
         logger.info("Handler'lar kaydedildi")
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -426,6 +435,75 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         # Callback data'yı işle
         # Gelecekte menüler ve inline butonlar için kullanılabilir
         logger.info(f"Button callback: {query.data}")
+    
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Normal mesajları akıllıca işle
+        - Komut benzeri mesajları tespit et ve yönlendir
+        - Diğer mesajları AI'ya gönder
+        """
+        user_message = update.message.text.strip()
+        user_id = update.effective_user.id
+        
+        # Komut benzeri anahtar kelimeler
+        command_hints = {
+            'not ekle': '/not_ekle',
+            'not sil': '/not_sil',
+            'notlarım': '/notlar',
+            'notları göster': '/notlar',
+            'not ara': '/not_ara',
+            'görev ekle': '/gorev_ekle',
+            'görev sil': '/gorev_sil',
+            'görevlerim': '/gorevler',
+            'görevleri göster': '/gorevler',
+            'bugünkü görevler': '/bugun',
+            'görev tamamla': '/gorev_tamamla',
+            'hatırlatıcı': '/hatirlatici',
+            'hatırlatıcı ekle': '/hatirlatici',
+            'yardım': '/yardim',
+            'komutlar': '/yardim',
+        }
+        
+        # Mesajı küçük harfe çevir kontrol için
+        lower_message = user_message.lower()
+        
+        # Komut benzeri mi kontrol et
+        for hint, command in command_hints.items():
+            if hint in lower_message:
+                await update.message.reply_text(
+                    f"💡 Bunu mu demek istediniz?\n\n"
+                    f"Komut: `{command}`\n\n"
+                    f"Kullanım için /yardim yazabilirsiniz.",
+                    parse_mode='Markdown'
+                )
+                return
+        
+        # Normal mesaj ise AI'ya gönder
+        try:
+            # "Yazıyor..." göstergesi
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            
+            # AI context oluştur
+            context_info = (
+                "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
+                "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
+                "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
+                "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
+                "(/not_ekle, /gorev_ekle gibi)."
+            )
+            
+            ai_response = self.ai_assistant.chat(user_id, user_message, context=context_info)
+            
+            await update.message.reply_text(ai_response)
+            
+            logger.info(f"Normal mesaj işlendi - User: {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Mesaj işleme hatası: {e}")
+            await update.message.reply_text(
+                "😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                "Komutları görmek için: /yardim"
+            )
     
     async def send_reminder_notification(self, telegram_id: int, message: str):
         """

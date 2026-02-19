@@ -91,7 +91,7 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
         """AI asistan kullanılabilir mi?"""
         return self.model is not None
     
-    def chat(self, user_id: int, message: str, use_context: bool = True) -> str:
+    def chat(self, user_id: int, message: str, use_context: bool = True, context: str = None) -> str:
         """
         Kullanıcı ile sohbet et
         
@@ -99,6 +99,7 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
             user_id: Kullanıcı ID'si
             message: Kullanıcı mesajı
             use_context: Sohbet geçmişini kullan
+            context: Ek bağlam bilgisi (opsiyonel)
             
         Returns:
             AI yanıtı
@@ -107,7 +108,13 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
             return "Üzgünüm, AI asistan şu anda kullanılamıyor. Lütfen GEMINI_API_KEY ayarlandığından emin olun."
         
         try:
-            # Kullanıcı mesajını kaydet
+            # Context varsa mesaja ekle
+            if context:
+                full_message = f"{context}\n\nKullanıcı mesajı: {message}"
+            else:
+                full_message = message
+            
+            # Kullanıcı mesajını kaydet (orijinal mesaj)
             self.db_manager.add_chat_message(user_id, 'user', message)
             
             # Sohbet geçmişini al
@@ -119,8 +126,8 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
             # Sohbet oturumu başlat (system_instruction modelde tanımlı)
             chat_session = self.model.start_chat(history=history)
             
-            # Yanıt oluştur
-            response = chat_session.send_message(message)
+            # Yanıt oluştur (context varsa full_message kullan)
+            response = chat_session.send_message(full_message)
             ai_response = response.text
             
             # AI yanıtını kaydet (Gemini'de 'model' rolü kullanılır)
