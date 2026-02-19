@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # .env dosyasını yükle
-load_dotenv()
+# override=False: Railway gibi platformlarda environment variables'ı korur
+load_dotenv(override=False)
 
 # Proje dizini
 BASE_DIR = Path(__file__).resolve().parent
