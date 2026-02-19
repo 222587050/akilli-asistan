@@ -499,8 +499,13 @@ class DatabaseManager:
             # Eski mesajlardan yeniye sıralama
             messages.reverse()
             
+            # Gemini API format: role must be 'user' or 'model' 
+            # Map 'assistant' -> 'model' for compatibility
             return [
-                {'role': msg.role, 'parts': [msg.message]}
+                {
+                    'role': 'model' if msg.role == 'assistant' else msg.role, 
+                    'parts': [{'text': msg.message}]
+                }
                 for msg in messages
             ]
         except SQLAlchemyError as e:
