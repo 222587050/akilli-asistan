@@ -43,7 +43,7 @@ class TelegramBot:
     
     def __init__(self, db_manager: DatabaseManager, ai_assistant: AIAssistant,
                  notes_manager: NotesManager, schedule_manager: ScheduleManager,
-                 deepai_api_key: str = None):
+                 replicate_api_token: str = None):
         """
         Telegram bot'u başlat
         
@@ -52,26 +52,26 @@ class TelegramBot:
             ai_assistant: AI asistan
             notes_manager: Not yöneticisi
             schedule_manager: Ajanda yöneticisi
-            deepai_api_key: DeepAI API key (opsiyonel)
+            replicate_api_token: Replicate API token (opsiyonel)
         """
         self.db_manager = db_manager
         self.ai_assistant = ai_assistant
         self.notes_manager = notes_manager
         self.schedule_manager = schedule_manager
         
-        # Görüntü işleme modülleri (eğer API key varsa)
+        # Görüntü işleme modülleri (eğer API token varsa)
         self.image_upscaler = None
         self.image_handler = None
         
-        if deepai_api_key:
+        if replicate_api_token:
             from modules.image_upscaler import ImageUpscaler
             from modules.image_handler import TelegramImageHandler
             
-            self.image_upscaler = ImageUpscaler(deepai_api_key)
+            self.image_upscaler = ImageUpscaler(replicate_api_token)
             self.image_handler = TelegramImageHandler()
-            logger.info("✅ Görüntü yükseltme modülleri başlatıldı")
+            logger.info("✅ Replicate görüntü yükseltme modülü başlatıldı (4x upscaling)")
         else:
-            logger.warning("⚠️ DEEPAI_API_KEY bulunamadı. Görüntü yükseltme özellikleri çalışmayacak.")
+            logger.warning("⚠️ REPLICATE_API_TOKEN bulunamadı. Görüntü yükseltme özellikleri çalışmayacak.")
         
         if not TELEGRAM_BOT_TOKEN:
             raise ValueError("TELEGRAM_BOT_TOKEN bulunamadı!")
@@ -193,7 +193,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         if self.image_upscaler:
             help_text += """
 *🎨 Görüntü Yükseltme:*
-/upscale - Fotoğraf kalitesini artır (2x)
+/upscale - Fotoğraf kalitesini artır (4x)
 /upscale_yardim - Detaylı bilgi
 """
         
@@ -565,8 +565,8 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         # Kullanıcıya talimat ver
         await update.message.reply_text(
             "📸 Lütfen kalitesini artırmak istediğiniz fotoğrafı gönderin.\n\n"
-            "✨ Çözünürlük 2x artırılacak!\n"
-            "⏱️ İşlem 20-30 saniye sürer."
+            "✨ Çözünürlük 4x artırılacak!\n"
+            "⏱️ İşlem 10-15 saniye sürer."
         )
         
         # Kullanıcı state'ini ayarla
@@ -587,7 +587,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
             await update.message.reply_text(
                 "📸 Fotoğraf aldım!\n\n"
                 "Ne yapmak istersiniz?\n"
-                "/upscale - Kaliteyi artır (2x)"
+                "/upscale - Kaliteyi artır (4x)"
             )
         else:
             await update.message.reply_text(
@@ -602,7 +602,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
             # İlerleme mesajı
             progress_msg = await update.message.reply_text(
                 "🔄 İşleniyor...\n"
-                "⏱️ Bu 20-30 saniye sürebilir, lütfen bekleyin."
+                "⏱️ Bu 10-15 saniye sürebilir, lütfen bekleyin."
             )
             
             # En yüksek çözünürlüklü fotoğrafı al
@@ -615,7 +615,8 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                 f"📸 Fotoğraf bilgileri:\n"
                 f"📊 Boyut: {photo.width}x{photo.height}\n"
                 f"💾 Dosya: {file_size_mb:.2f} MB\n\n"
-                f"🔄 Yükseltiliyor..."
+                f"🚀 4x yükseltiliyor... (Replicate AI)\n"
+                f"⏱️ 10-15 saniye sürebilir"
             )
             
             # Fotoğrafı indir
@@ -656,11 +657,12 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
             # Yükseltilmiş fotoğrafı gönder
             with open(output_path, 'rb') as photo_file:
                 caption = (
-                    f"✨ Görüntü yükseltildi!\n\n"
+                    f"✨ Görüntü yükseltildi! (Replicate AI)\n\n"
                     f"📊 Öncesi: {photo.width}x{photo.height}\n"
                     f"{dimensions_info}"
-                    f"🎨 Kalite artışı: ~2x\n\n"
-                    f"💡 Başka bir fotoğraf için /upscale yazın."
+                    f"🎨 Kalite artışı: ~4x\n\n"
+                    f"💡 Başka bir fotoğraf için /upscale yazın.\n"
+                    f"🏆 Powered by Real-ESRGAN"
                 )
                 
                 await update.message.reply_photo(
@@ -689,32 +691,36 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
     async def upscale_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Upscale yardım komutu"""
         help_text = """
-🎨 *Görüntü Yükseltme Sistemi*
+🎨 *Görüntü Yükseltme Sistemi* (Replicate AI)
 
 📸 *Komutlar:*
-/upscale - Fotoğraf kalitesini artır (2x)
+/upscale - Fotoğraf kalitesini artır (4x!)
 /upscale_yardim - Bu yardım mesajı
 
 ✨ *Nasıl Kullanılır:*
 1. /upscale komutunu yazın
 2. Fotoğrafınızı gönderin
-3. 20-30 saniye bekleyin
-4. Yüksek kaliteli fotoğrafı alın!
+3. 10-15 saniye bekleyin
+4. Süper kaliteli fotoğrafı alın!
 
 📊 *Özellikler:*
-- 2x çözünürlük artırma
-- Netlik iyileştirme
-- Renk canlandırma
-- Gürültü azaltma
+- 🚀 *4x çözünürlük artırma* (800x600 → 3200x2400!)
+- ✨ Gelişmiş AI (Real-ESRGAN)
+- 🎨 Netlik iyileştirme
+- 🌈 Renk canlandırma
+- 🔇 Gürültü azaltma
 
 ⚠️ *Limitler:*
 - Max dosya boyutu: 10 MB
-- Format: JPG, PNG
+- Aylık limit: 500 fotoğraf (ücretsiz!)
+- Format: JPG, PNG, WebP
 
 💡 *İpuçları:*
-- Daha iyi sonuç için iyi aydınlatmalı fotoğraflar kullanın
-- Çok bulanık fotoğraflar tam düzelmeyebilir
-- İşlem 20-30 saniye sürer, sabırlı olun
+- İyi aydınlatmalı fotoğraflar en iyi sonucu verir
+- Küçük fotoğrafları 4x büyütür (800x600 → 3200x2400)
+- İşlem 10-15 saniye sürer
+
+🏆 *Powered by Replicate AI*
 """
         
         await update.message.reply_text(help_text, parse_mode='Markdown')

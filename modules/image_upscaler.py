@@ -1,56 +1,52 @@
+import replicate
 import requests
 import os
 from typing import Optional, Dict
 import logging
-
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 class ImageUpscaler:
-    """DeepAI API ile görüntü yükseltme"""
+    """Replicate API ile görüntü yükseltme (4x Real-ESRGAN)"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_token: str):
         """
         Args:
-            api_key: DeepAI API key
+            api_token: Replicate API token
         """
-        self.api_key = api_key
-        self.base_url = "https://api.deepai.org/api"
+        self.api_token = api_token
+        os.environ["REPLICATE_API_TOKEN"] = api_token
         
-    def upscale_image(self, image_path: str, model: str = "waifu2x") -> Optional[str]:
+    def upscale_image(self, image_path: str) -> Optional[str]:
         """
-        Görüntü kalitesini artır
+        Görüntü kalitesini artır (4x upscaling)
         
         Args:
             image_path: Yüklenecek görüntü dosyası yolu
-            model: DeepAI model ("waifu2x" = 2x, "torch-srgan" = 4x)
             
         Returns:
             Yükseltilmiş görüntü URL'i veya None
         """
         try:
-            endpoint = f"{self.base_url}/{model}"
+            logger.info(f"Upscaling başlatılıyor: {image_path}")
             
-            with open(image_path, 'rb') as image_file:
-                response = requests.post(
-                    endpoint,
-                    files={'image': image_file},
-                    headers={'api-key': self.api_key},
-                    timeout=60
-                )
+            # Replicate model: Real-ESRGAN (4x upscaling)
+            output = replicate.run(
+                "nightmareai/real-esrgan:42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b",
+                input={
+                    "image": open(image_path, "rb"),
+                    "scale": 4,
+                    "face_enhance": False
+                }
+            )
             
-            if response.status_code == 200:
-                result = response.json()
-                output_url = result.get('output_url')
-                logger.info(f"Upscale başarılı: {output_url}")
-                return output_url
+            # Output bir URL string
+            if output:
+                logger.info(f"Upscale başarılı: {output}")
+                return output
             else:
-                logger.error(f"DeepAI API hatası: {response.status_code} - {response.text}")
+                logger.error("Replicate boş sonuç döndü")
                 return None
                 
         except Exception as e:
@@ -69,7 +65,7 @@ class ImageUpscaler:
             Başarılı ise True
         """
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=60)  # Replicate için timeout artırıldı
             if response.status_code == 200:
                 with open(output_path, 'wb') as f:
                     f.write(response.content)
@@ -90,10 +86,6 @@ class ImageUpscaler:
         Returns:
             Görüntü bilgileri dict
         """
-        if not PIL_AVAILABLE:
-            logger.warning("PIL not available, cannot get image info")
-            return {}
-        
         try:
             with Image.open(image_path) as img:
                 return {
