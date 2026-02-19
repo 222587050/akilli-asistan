@@ -1,4 +1,5 @@
 import os
+import time
 from telegram import File
 import logging
 
@@ -61,8 +62,6 @@ class TelegramImageHandler:
         Args:
             max_age_hours: Maksimum dosya yaşı (saat)
         """
-        import time
-        
         try:
             current_time = time.time()
             max_age_seconds = max_age_hours * 3600

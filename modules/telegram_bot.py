@@ -14,6 +14,11 @@ from telegram.ext import (
     filters
 )
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 from config import TELEGRAM_BOT_TOKEN
 from database import DatabaseManager
 from modules.ai_assistant import AIAssistant
@@ -637,9 +642,12 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                 return
             
             # Sonuç bilgileri
-            from PIL import Image
-            with Image.open(output_path) as img:
-                new_width, new_height = img.size
+            if Image:
+                with Image.open(output_path) as img:
+                    new_width, new_height = img.size
+            else:
+                # Fallback if PIL is not available
+                new_width, new_height = "Unknown", "Unknown"
             
             # Yükseltilmiş fotoğrafı gönder
             with open(output_path, 'rb') as photo_file:
