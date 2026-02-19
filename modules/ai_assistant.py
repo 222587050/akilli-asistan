@@ -42,6 +42,19 @@ class AIAssistant:
                 'gemini-1.5-flash',      # Eski ama kararlı
             ]
             
+            # Sistem yönergesi (Türkçe AI asistan davranışı)
+            # Note: System instruction is defined here (not in config) because it's
+            # integral to the GenerativeModel initialization and Gemini API requires
+            # it at model creation time, not as part of message history
+            system_instruction = """Sen yardımsever bir Türkçe asistansın. Öğrencilere ders konularında yardımcı oluyorsun.
+Görevlerin:
+- Ders sorularını açık ve anlaşılır şekilde yanıtlamak
+- Not özetleme ve açıklama yapmak
+- Öğrenme sürecinde rehberlik etmek
+- Türkçe ve nazik bir dil kullanmak
+
+Her zaman yapıcı, teşvik edici ve eğitici ol."""
+            
             # Model yapılandırması
             generation_config = {
                 'temperature': GEMINI_TEMPERATURE,
@@ -54,7 +67,8 @@ class AIAssistant:
                 try:
                     test_model = genai.GenerativeModel(
                         model_name=model_name,
-                        generation_config=generation_config
+                        generation_config=generation_config,
+                        system_instruction=system_instruction
                     )
                     # Modeli test et
                     test_model.count_tokens("test")
@@ -102,28 +116,15 @@ class AIAssistant:
             else:
                 history = []
             
-            # Sistem mesajı ekle (Türkçe yönlendirme)
-            system_prompt = """Sen yardımsever bir Türkçe asistansın. Öğrencilere ders konularında yardımcı oluyorsun.
-Görevlerin:
-- Ders sorularını açık ve anlaşılır şekilde yanıtlamak
-- Not özetleme ve açıklama yapmak
-- Öğrenme sürecinde rehberlik etmek
-- Türkçe ve nazik bir dil kullanmak
-
-Her zaman yapıcı, teşvik edici ve eğitici ol."""
-            
-            # Sohbet oturumu başlat
+            # Sohbet oturumu başlat (system_instruction modelde tanımlı)
             chat_session = self.model.start_chat(history=history)
             
-            # Sistem mesajını ve kullanıcı mesajını birleştir
-            full_prompt = f"{system_prompt}\n\nKullanıcı: {message}"
-            
             # Yanıt oluştur
-            response = chat_session.send_message(full_prompt)
+            response = chat_session.send_message(message)
             ai_response = response.text
             
-            # AI yanıtını kaydet
-            self.db_manager.add_chat_message(user_id, 'assistant', ai_response)
+            # AI yanıtını kaydet (Gemini'de 'model' rolü kullanılır)
+            self.db_manager.add_chat_message(user_id, 'model', ai_response)
             
             logger.info(f"AI yanıt oluşturuldu: kullanıcı={user_id}")
             return ai_response

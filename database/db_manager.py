@@ -499,10 +499,28 @@ class DatabaseManager:
             # Eski mesajlardan yeniye sıralama
             messages.reverse()
             
-            return [
-                {'role': msg.role, 'parts': [msg.message]}
-                for msg in messages
-            ]
+            # Gemini API format: role must be 'user' or 'model' 
+            # Map 'assistant' -> 'model' for compatibility
+            result = []
+            for msg in messages:
+                # Normalize role to Gemini-compatible values
+                if msg.role == 'assistant':
+                    role = 'model'
+                elif msg.role == 'user':
+                    role = 'user'
+                elif msg.role == 'model':
+                    role = 'model'
+                else:
+                    # Skip invalid roles to prevent API errors
+                    logger.warning(f"Skipping message with invalid role: {msg.role}")
+                    continue
+                
+                result.append({
+                    'role': role,
+                    'parts': [{'text': msg.message}]
+                })
+            
+            return result
         except SQLAlchemyError as e:
             logger.error(f"Sohbet geçmişi getirme hatası: {e}")
             return []
