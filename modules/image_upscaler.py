@@ -32,14 +32,15 @@ class ImageUpscaler:
             logger.info(f"Upscaling başlatılıyor: {image_path}")
             
             # Replicate model: Real-ESRGAN (4x upscaling)
-            output = replicate.run(
-                "nightmareai/real-esrgan:42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b",
-                input={
-                    "image": open(image_path, "rb"),
-                    "scale": 4,
-                    "face_enhance": False
-                }
-            )
+            with open(image_path, "rb") as image_file:
+                output = replicate.run(
+                    "nightmareai/real-esrgan:42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b",
+                    input={
+                        "image": image_file,
+                        "scale": 4,
+                        "face_enhance": False
+                    }
+                )
             
             # Output bir URL string
             if output:
