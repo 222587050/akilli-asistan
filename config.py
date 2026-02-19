@@ -15,6 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # API Anahtarları
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+DEEPAI_API_KEY = os.getenv('DEEPAI_API_KEY', '')
 
 # Veritabanı
 DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR}/data/assistant.db')

@@ -8,7 +8,7 @@ import sys
 import asyncio
 from pathlib import Path
 
-from config import check_config, logger
+from config import check_config, logger, DEEPAI_API_KEY
 from database import DatabaseManager
 from modules.ai_assistant import AIAssistant
 from modules.notes_manager import NotesManager
@@ -124,7 +124,8 @@ def initialize_components():
         db_manager=db_manager,
         ai_assistant=ai_assistant,
         notes_manager=notes_manager,
-        schedule_manager=schedule_manager
+        schedule_manager=schedule_manager,
+        deepai_api_key=DEEPAI_API_KEY
     )
     
     # Hatırlatıcı zamanlayıcısını başlat
