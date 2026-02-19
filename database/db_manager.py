@@ -2,14 +2,14 @@
 Veritabanı Yönetim Sistemi
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict, Any
 from sqlalchemy import create_engine, and_, or_
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from config import DATABASE_URL, MAX_CHAT_HISTORY
-from .models import Base, User, Note, Task, Reminder, ChatHistory, PriorityLevel
+from .models import Base, User, Note, Task, Reminder, ChatHistory, PriorityLevel, Course, Topic, Quiz, StudyProgress
 
 logger = logging.getLogger(__name__)
 
@@ -548,3 +548,457 @@ class DatabaseManager:
                 logger.info(f"Eski mesajlar temizlendi: {delete_count} adet")
         except SQLAlchemyError as e:
             logger.error(f"Mesaj temizleme hatası: {e}")
+
+    # ============ DERS YÖNETİMİ İŞLEMLERİ ============
+
+    def add_course(self, user_id: int, name: str, description: str) -> int:
+        """
+        Ders ekle
+
+        Args:
+            user_id: Kullanıcı ID'si
+            name: Ders adı
+            description: Ders açıklaması
+
+        Returns:
+            Yeni kurs ID'si
+        """
+        session = self.get_session()
+        try:
+            # Aynı kullanıcı için aynı isimde ders varsa güncelle
+            existing = session.query(Course).filter_by(user_id=user_id, name=name).first()
+            if existing:
+                existing.description = description
+                session.commit()
+                course_id = existing.id
+            else:
+                course = Course(user_id=user_id, name=name, description=description)
+                session.add(course)
+                session.commit()
+                course_id = course.id
+            logger.info(f"Ders eklendi/güncellendi: kullanıcı={user_id}, ders={name}")
+            return course_id
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Ders ekleme hatası: {e}")
+            raise
+        finally:
+            session.close()
+
+    def add_topic(self, course_id: int, title: str, week: int) -> int:
+        """
+        Kursa konu ekle
+
+        Args:
+            course_id: Kurs ID'si
+            title: Konu başlığı
+            week: Hafta numarası
+
+        Returns:
+            Yeni konu ID'si
+        """
+        session = self.get_session()
+        try:
+            # Aynı kurs için aynı başlıkta konu varsa atla
+            existing = session.query(Topic).filter_by(course_id=course_id, title=title).first()
+            if existing:
+                return existing.id
+            topic = Topic(course_id=course_id, title=title, week_number=week)
+            session.add(topic)
+            # Kursun total_topics sayısını güncelle
+            course = session.query(Course).filter_by(id=course_id).first()
+            if course:
+                count = session.query(Topic).filter_by(course_id=course_id).count()
+                course.total_topics = count + 1
+            session.commit()
+            topic_id = topic.id
+            logger.info(f"Konu eklendi: kurs={course_id}, başlık={title}")
+            return topic_id
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Konu ekleme hatası: {e}")
+            raise
+        finally:
+            session.close()
+
+    def get_user_courses(self, user_id: int) -> List[Dict[str, Any]]:
+        """
+        Kullanıcının derslerini getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+
+        Returns:
+            Ders listesi (dict)
+        """
+        session = self.get_session()
+        try:
+            courses = session.query(Course).filter_by(user_id=user_id).order_by(Course.id).all()
+            result = []
+            for c in courses:
+                # Tamamlanan konu sayısını hesapla
+                completed = session.query(Topic).filter_by(course_id=c.id, is_completed=True).count()
+                total = session.query(Topic).filter_by(course_id=c.id).count()
+                result.append({
+                    'id': c.id,
+                    'name': c.name,
+                    'description': c.description,
+                    'total_topics': total,
+                    'completed_topics': completed,
+                    'created_at': c.created_at,
+                })
+            return result
+        except SQLAlchemyError as e:
+            logger.error(f"Ders getirme hatası: {e}")
+            return []
+        finally:
+            session.close()
+
+    def get_course_topics(self, course_id: int) -> List[Dict[str, Any]]:
+        """
+        Kursun konularını getir
+
+        Args:
+            course_id: Kurs ID'si
+
+        Returns:
+            Konu listesi (dict)
+        """
+        session = self.get_session()
+        try:
+            topics = session.query(Topic).filter_by(course_id=course_id).order_by(Topic.week_number).all()
+            return [
+                {
+                    'id': t.id,
+                    'title': t.title,
+                    'week_number': t.week_number,
+                    'is_completed': t.is_completed,
+                    'completed_at': t.completed_at,
+                }
+                for t in topics
+            ]
+        except SQLAlchemyError as e:
+            logger.error(f"Konu getirme hatası: {e}")
+            return []
+        finally:
+            session.close()
+
+    def get_next_topic(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Kullanıcının sıradaki tamamlanmamış konusunu getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+
+        Returns:
+            Konu bilgisi dict veya None
+        """
+        session = self.get_session()
+        try:
+            topic = (
+                session.query(Topic, Course)
+                .join(Course, Topic.course_id == Course.id)
+                .filter(Course.user_id == user_id, Topic.is_completed == False)
+                .order_by(Course.id, Topic.week_number)
+                .first()
+            )
+            if topic:
+                t, c = topic
+                return {
+                    'topic_id': t.id,
+                    'topic_title': t.title,
+                    'week_number': t.week_number,
+                    'course_id': c.id,
+                    'course_name': c.name,
+                }
+            return None
+        except SQLAlchemyError as e:
+            logger.error(f"Sıradaki konu getirme hatası: {e}")
+            return None
+        finally:
+            session.close()
+
+    def get_next_topics(self, user_id: int, limit: int = 3) -> List[Dict[str, Any]]:
+        """
+        Kullanıcının sıradaki tamamlanmamış konularını getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+            limit: Maksimum konu sayısı
+
+        Returns:
+            Konu listesi (dict)
+        """
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(Topic, Course)
+                .join(Course, Topic.course_id == Course.id)
+                .filter(Course.user_id == user_id, Topic.is_completed == False)
+                .order_by(Course.id, Topic.week_number)
+                .limit(limit)
+                .all()
+            )
+            return [
+                {
+                    'topic_id': t.id,
+                    'topic_title': t.title,
+                    'week_number': t.week_number,
+                    'course_id': c.id,
+                    'course_name': c.name,
+                }
+                for t, c in rows
+            ]
+        except SQLAlchemyError as e:
+            logger.error(f"Sıradaki konular getirme hatası: {e}")
+            return []
+        finally:
+            session.close()
+
+    def mark_topic_completed(self, user_id: int, course_name: str, topic_title: str) -> bool:
+        """
+        Konuyu tamamlandı olarak işaretle
+
+        Args:
+            user_id: Kullanıcı ID'si
+            course_name: Ders adı
+            topic_title: Konu başlığı
+
+        Returns:
+            Başarılı ise True
+        """
+        session = self.get_session()
+        try:
+            course = session.query(Course).filter(
+                Course.user_id == user_id,
+                Course.name.ilike(f"%{course_name}%")
+            ).first()
+            if not course:
+                return False
+            topic = session.query(Topic).filter(
+                Topic.course_id == course.id,
+                Topic.title.ilike(f"%{topic_title}%")
+            ).first()
+            if not topic:
+                return False
+            if not topic.is_completed:
+                topic.is_completed = True
+                topic.completed_at = datetime.utcnow()
+                # completed_topics sayısını güncelle (is_completed True yapıldıktan sonra say)
+                completed_count = session.query(Topic).filter_by(
+                    course_id=course.id, is_completed=True
+                ).count()
+                course.completed_topics = completed_count
+                # Çalışma ilerlemesini güncelle
+                self._update_study_progress(session, user_id, course.id)
+                session.commit()
+                logger.info(f"Konu tamamlandı: kullanıcı={user_id}, konu={topic_title}")
+            return True
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Konu tamamlama hatası: {e}")
+            return False
+        finally:
+            session.close()
+
+    def mark_topic_completed_by_id(self, user_id: int, topic_id: int) -> bool:
+        """
+        Konu ID'si ile konuyu tamamlandı olarak işaretle
+
+        Args:
+            user_id: Kullanıcı ID'si
+            topic_id: Konu ID'si
+
+        Returns:
+            Başarılı ise True
+        """
+        session = self.get_session()
+        try:
+            topic = session.query(Topic).filter_by(id=topic_id).first()
+            if not topic:
+                return False
+            course = session.query(Course).filter_by(id=topic.course_id, user_id=user_id).first()
+            if not course:
+                return False
+            if not topic.is_completed:
+                topic.is_completed = True
+                topic.completed_at = datetime.utcnow()
+                completed_count = session.query(Topic).filter_by(
+                    course_id=course.id, is_completed=True
+                ).count()
+                course.completed_topics = completed_count
+                self._update_study_progress(session, user_id, course.id)
+                session.commit()
+            return True
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Konu tamamlama hatası: {e}")
+            return False
+        finally:
+            session.close()
+
+    def _update_study_progress(self, session: Session, user_id: int, course_id: int):
+        """Çalışma ilerlemesini güncelle (internal)"""
+        try:
+            today = date.today()
+            progress = session.query(StudyProgress).filter_by(
+                user_id=user_id, course_id=course_id
+            ).first()
+            if not progress:
+                progress = StudyProgress(
+                    user_id=user_id,
+                    course_id=course_id,
+                    last_study_date=today,
+                    streak_days=1
+                )
+                session.add(progress)
+            else:
+                if progress.last_study_date == today:
+                    pass  # Aynı gün, streak değişmez
+                elif progress.last_study_date == today - timedelta(days=1):
+                    progress.streak_days += 1
+                    progress.last_study_date = today
+                else:
+                    progress.streak_days = 1
+                    progress.last_study_date = today
+        except SQLAlchemyError as e:
+            logger.error(f"Çalışma ilerlemesi güncelleme hatası: {e}")
+
+    def add_quiz_result(self, user_id: int, topic_id: int, score: int, total: int):
+        """
+        Quiz sonucunu kaydet
+
+        Args:
+            user_id: Kullanıcı ID'si
+            topic_id: Konu ID'si
+            score: Doğru sayısı
+            total: Toplam soru sayısı
+        """
+        session = self.get_session()
+        try:
+            quiz = Quiz(
+                user_id=user_id,
+                topic_id=topic_id,
+                score=score,
+                total_questions=total
+            )
+            session.add(quiz)
+            session.commit()
+            logger.info(f"Quiz sonucu kaydedildi: kullanıcı={user_id}, skor={score}/{total}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Quiz sonucu kaydetme hatası: {e}")
+        finally:
+            session.close()
+
+    def get_avg_quiz_score(self, user_id: int, course_id: int) -> Optional[float]:
+        """
+        Ders için quiz ortalamasını getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+            course_id: Kurs ID'si
+
+        Returns:
+            Yüzde olarak ortalama skor veya None
+        """
+        session = self.get_session()
+        try:
+            topic_ids = [
+                t.id for t in session.query(Topic).filter_by(course_id=course_id).all()
+            ]
+            if not topic_ids:
+                return None
+            quizzes = session.query(Quiz).filter(
+                Quiz.user_id == user_id,
+                Quiz.topic_id.in_(topic_ids),
+                Quiz.total_questions > 0
+            ).all()
+            if not quizzes:
+                return None
+            total_pct = sum(
+                (q.score / q.total_questions) * 100 for q in quizzes
+            )
+            return total_pct / len(quizzes)
+        except SQLAlchemyError as e:
+            logger.error(f"Quiz ortalaması getirme hatası: {e}")
+            return None
+        finally:
+            session.close()
+
+    def get_streak(self, user_id: int) -> int:
+        """
+        Kullanıcının en yüksek çalışma streak'ini getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+
+        Returns:
+            Streak gün sayısı
+        """
+        session = self.get_session()
+        try:
+            progresses = session.query(StudyProgress).filter_by(user_id=user_id).all()
+            if not progresses:
+                return 0
+            return max(p.streak_days for p in progresses)
+        except SQLAlchemyError as e:
+            logger.error(f"Streak getirme hatası: {e}")
+            return 0
+        finally:
+            session.close()
+
+    def get_total_quizzes(self, user_id: int) -> int:
+        """
+        Kullanıcının toplam quiz sayısını getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+
+        Returns:
+            Toplam quiz sayısı
+        """
+        session = self.get_session()
+        try:
+            return session.query(Quiz).filter_by(user_id=user_id).count()
+        except SQLAlchemyError as e:
+            logger.error(f"Toplam quiz sayısı getirme hatası: {e}")
+            return 0
+        finally:
+            session.close()
+
+    def get_last_quiz_results(self, user_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Son quiz sonuçlarını getir
+
+        Args:
+            user_id: Kullanıcı ID'si
+            limit: Maksimum sonuç sayısı
+
+        Returns:
+            Quiz sonuç listesi (dict)
+        """
+        session = self.get_session()
+        try:
+            quizzes = (
+                session.query(Quiz, Topic)
+                .join(Topic, Quiz.topic_id == Topic.id)
+                .filter(Quiz.user_id == user_id)
+                .order_by(Quiz.completed_at.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                {
+                    'score': q.score,
+                    'total_questions': q.total_questions,
+                    'completed_at': q.completed_at,
+                    'topic_title': t.title,
+                }
+                for q, t in quizzes
+            ]
+        except SQLAlchemyError as e:
+            logger.error(f"Son quiz sonuçları getirme hatası: {e}")
+            return []
+        finally:
+            session.close()
