@@ -64,7 +64,7 @@ class AIAssistant:
                     model_found = True
                     break
                 except Exception as e:
-                    logger.warning(f"⚠️ {model_name} kullanılamıyor, sonraki deneniyor...")
+                    logger.warning(f"⚠️ {model_name} kullanılamıyor ({str(e)}), sonraki deneniyor...")
                     continue
             
             if not model_found:
