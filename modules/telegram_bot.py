@@ -645,9 +645,10 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
             if Image:
                 with Image.open(output_path) as img:
                     new_width, new_height = img.size
+                caption_dimensions = f"📊 Sonrası: {new_width}x{new_height}\n"
             else:
                 # Fallback if PIL is not available
-                new_width, new_height = "Unknown", "Unknown"
+                caption_dimensions = ""
             
             # Yükseltilmiş fotoğrafı gönder
             with open(output_path, 'rb') as photo_file:
@@ -656,7 +657,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                     caption=(
                         f"✨ Görüntü yükseltildi!\n\n"
                         f"📊 Öncesi: {photo.width}x{photo.height}\n"
-                        f"📊 Sonrası: {new_width}x{new_height}\n"
+                        f"{caption_dimensions}"
                         f"🎨 Kalite artışı: ~2x\n\n"
                         f"💡 Başka bir fotoğraf için /upscale yazın."
                     )

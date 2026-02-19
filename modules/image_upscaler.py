@@ -3,6 +3,12 @@ import os
 from typing import Optional, Dict
 import logging
 
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class ImageUpscaler:
@@ -84,9 +90,11 @@ class ImageUpscaler:
         Returns:
             Görüntü bilgileri dict
         """
+        if not PIL_AVAILABLE:
+            logger.warning("PIL not available, cannot get image info")
+            return {}
+        
         try:
-            from PIL import Image
-            
             with Image.open(image_path) as img:
                 return {
                     'width': img.width,
