@@ -641,26 +641,34 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                 self.image_handler.cleanup_file(input_path)
                 return
             
-            # Sonuç bilgileri
+            # Sonuç bilgileri - PIL ile görüntü boyutlarını al
             if Image:
-                with Image.open(output_path) as img:
-                    new_width, new_height = img.size
-                caption_dimensions = f"📊 Sonrası: {new_width}x{new_height}\n"
+                try:
+                    with Image.open(output_path) as img:
+                        new_width, new_height = img.size
+                    dimensions_info = f"📊 Sonrası: {new_width}x{new_height}\n"
+                except Exception as e:
+                    logger.warning(f"PIL ile boyut alınamadı: {e}")
+                    dimensions_info = ""
             else:
-                # Fallback if PIL is not available
-                caption_dimensions = ""
+                dimensions_info = ""
             
             # Yükseltilmiş fotoğrafı gönder
             with open(output_path, 'rb') as photo_file:
+                caption = (
+                    f"✨ Görüntü yükseltildi!\n\n"
+                    f"📊 Öncesi: {photo.width}x{photo.height}\n"
+                )
+                if dimensions_info:
+                    caption += dimensions_info
+                caption += (
+                    f"🎨 Kalite artışı: ~2x\n\n"
+                    f"💡 Başka bir fotoğraf için /upscale yazın."
+                )
+                
                 await update.message.reply_photo(
                     photo=photo_file,
-                    caption=(
-                        f"✨ Görüntü yükseltildi!\n\n"
-                        f"📊 Öncesi: {photo.width}x{photo.height}\n"
-                        f"{caption_dimensions}"
-                        f"🎨 Kalite artışı: ~2x\n\n"
-                        f"💡 Başka bir fotoğraf için /upscale yazın."
-                    )
+                    caption=caption
                 )
             
             # İlerleme mesajını sil
