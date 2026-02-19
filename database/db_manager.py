@@ -55,7 +55,7 @@ class DatabaseManager:
             last_name: Soyad
             
         Returns:
-            User nesnesi
+            User nesnesi (detached)
         """
         session = self.get_session()
         try:
@@ -79,6 +79,9 @@ class DatabaseManager:
                 user.last_active = datetime.utcnow()
                 session.commit()
             
+            # Load all attributes before expunging
+            _ = user.id, user.telegram_id, user.username, user.first_name, user.last_name
+            session.expunge(user)
             return user
         except SQLAlchemyError as e:
             session.rollback()
@@ -99,7 +102,7 @@ class DatabaseManager:
             content: Not içeriği
             
         Returns:
-            Note nesnesi
+            Note nesnesi (detached)
         """
         session = self.get_session()
         try:
@@ -107,6 +110,9 @@ class DatabaseManager:
             session.add(note)
             session.commit()
             logger.info(f"Not eklendi: kullanıcı={user_id}, kategori={category}")
+            # Load attributes before expunging
+            _ = note.id, note.category, note.content, note.created_at
+            session.expunge(note)
             return note
         except SQLAlchemyError as e:
             session.rollback()
@@ -213,7 +219,7 @@ class DatabaseManager:
             due_date: Bitiş tarihi
             
         Returns:
-            Task nesnesi
+            Task nesnesi (detached)
         """
         session = self.get_session()
         try:
@@ -227,6 +233,9 @@ class DatabaseManager:
             session.add(task)
             session.commit()
             logger.info(f"Görev eklendi: kullanıcı={user_id}, başlık={title}")
+            # Load attributes before expunging
+            _ = task.id, task.title, task.priority, task.due_date
+            session.expunge(task)
             return task
         except SQLAlchemyError as e:
             session.rollback()
@@ -362,7 +371,7 @@ class DatabaseManager:
             recurrence_pattern: Tekrar düzeni
             
         Returns:
-            Reminder nesnesi
+            Reminder nesnesi (detached)
         """
         session = self.get_session()
         try:
@@ -376,6 +385,9 @@ class DatabaseManager:
             session.add(reminder)
             session.commit()
             logger.info(f"Hatırlatıcı eklendi: kullanıcı={user_id}, zaman={remind_at}")
+            # Load attributes before expunging
+            _ = reminder.id, reminder.message, reminder.remind_at
+            session.expunge(reminder)
             return reminder
         except SQLAlchemyError as e:
             session.rollback()
@@ -445,7 +457,7 @@ class DatabaseManager:
             message: Mesaj içeriği
             
         Returns:
-            ChatHistory nesnesi
+            ChatHistory nesnesi (detached)
         """
         session = self.get_session()
         try:
@@ -456,6 +468,7 @@ class DatabaseManager:
             # Eski mesajları temizle
             self._cleanup_old_messages(session, user_id)
             
+            session.expunge(chat)
             return chat
         except SQLAlchemyError as e:
             session.rollback()
