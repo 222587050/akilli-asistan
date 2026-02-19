@@ -559,7 +559,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         
         # Kullanıcıya talimat ver
         await update.message.reply_text(
-            "📸 Lütfen kalitesini artırmak istediğiniz eşarp fotoğrafını gönderin.\n\n"
+            "📸 Lütfen kalitesini artırmak istediğiniz fotoğrafı gönderin.\n\n"
             "✨ Çözünürlük 2x artırılacak!\n"
             "⏱️ İşlem 20-30 saniye sürer."
         )
@@ -683,7 +683,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
 
 ✨ **Nasıl Kullanılır:**
 1. /upscale komutunu yazın
-2. Eşarp fotoğrafınızı gönderin
+2. Fotoğrafınızı gönderin
 3. 20-30 saniye bekleyin
 4. Yüksek kaliteli fotoğrafı alın!
 
@@ -695,7 +695,6 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
 
 ⚠️ **Limitler:**
 - Max dosya boyutu: 10 MB
-- Aylık limit: 500 fotoğraf
 - Format: JPG, PNG
 
 💡 **İpuçları:**
