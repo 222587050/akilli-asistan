@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """Telegram Bot Sınıfı"""
     
+    # AI mesaj handler için context bilgisi
+    MESSAGE_HANDLER_CONTEXT = (
+        "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
+        "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
+        "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
+        "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
+        "(/not_ekle, /gorev_ekle gibi)."
+    )
+    
     def __init__(self, db_manager: DatabaseManager, ai_assistant: AIAssistant,
                  notes_manager: NotesManager, schedule_manager: ScheduleManager):
         """
@@ -436,7 +445,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         # Gelecekte menüler ve inline butonlar için kullanılabilir
         logger.info(f"Button callback: {query.data}")
     
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_message(self, update: Update, bot_context: ContextTypes.DEFAULT_TYPE):
         """
         Normal mesajları akıllıca işle
         - Komut benzeri mesajları tespit et ve yönlendir
@@ -480,19 +489,13 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         
         # Normal mesaj ise AI'ya gönder
         try:
-            # AI context oluştur
-            context_info = (
-                "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
-                "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
-                "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
-                "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
-                "(/not_ekle, /gorev_ekle gibi)."
-            )
-            
             # "Yazıyor..." göstergesi
-            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            await bot_context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             
-            ai_response = self.ai_assistant.simple_chat(user_message, context=context_info)
+            ai_response = self.ai_assistant.simple_chat(
+                user_message, 
+                context=self.MESSAGE_HANDLER_CONTEXT
+            )
             
             await update.message.reply_text(ai_response)
             
