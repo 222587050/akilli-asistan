@@ -478,7 +478,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         lower_message = user_message.lower()
         
         # Komut benzeri mi kontrol et (önceden derlenmiş pattern'ler ile)
-        for hint, (command, pattern) in COMMAND_HINTS.items():
+        for trigger_phrase, (command, pattern) in COMMAND_HINTS.items():
             if pattern.search(lower_message):
                 await update.message.reply_text(
                     f"💡 Bunu mu demek istediniz?\n\n"
