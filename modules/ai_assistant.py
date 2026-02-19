@@ -23,6 +23,7 @@ class AIAssistant:
         """
         self.db_manager = db_manager
         self.model = None
+        self.model_name = None
         
         if not GEMINI_API_KEY:
             logger.error("GEMINI_API_KEY bulunamadı!")
@@ -32,19 +33,43 @@ class AIAssistant:
             # Gemini API'yi yapılandır
             genai.configure(api_key=GEMINI_API_KEY)
             
+            # Model öncelik sırası (yeniden eskiye)
+            models_to_try = [
+                'gemini-2.5-flash',      # En yeni kararlı, hızlı
+                'gemini-2.5-pro',        # Daha güçlü ama yavaş
+                'gemini-flash-latest',   # Otomatik güncel
+                'gemini-2.0-flash',      # Yedek model
+                'gemini-1.5-flash',      # Eski ama kararlı
+            ]
+            
             # Model yapılandırması
             generation_config = {
                 'temperature': GEMINI_TEMPERATURE,
                 'max_output_tokens': GEMINI_MAX_TOKENS,
             }
             
-            # Modeli oluştur
-            self.model = genai.GenerativeModel(
-                model_name=GEMINI_MODEL,
-                generation_config=generation_config
-            )
+            # İlk çalışan modeli kullan
+            model_found = False
+            for model_name in models_to_try:
+                try:
+                    test_model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=generation_config
+                    )
+                    # Modeli test et
+                    test_model.count_tokens("test")
+                    self.model = test_model
+                    self.model_name = model_name
+                    logger.info(f"✅ Gemini AI modeli başlatıldı: {model_name}")
+                    model_found = True
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ {model_name} kullanılamıyor, sonraki deneniyor...")
+                    continue
             
-            logger.info(f"Gemini AI modeli başlatıldı: {GEMINI_MODEL}")
+            if not model_found:
+                raise Exception("❌ Hiçbir Gemini model bulunamadı! API key'inizi kontrol edin.")
+                
         except Exception as e:
             logger.error(f"Gemini AI başlatma hatası: {e}")
     
