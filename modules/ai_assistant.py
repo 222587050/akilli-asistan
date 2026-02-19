@@ -108,9 +108,9 @@ Her zaman yapıcı, teşvik edici ve eğitici ol."""
             return "Üzgünüm, AI asistan şu anda kullanılamıyor. Lütfen GEMINI_API_KEY ayarlandığından emin olun."
         
         try:
-            # Context varsa mesaja ekle
+            # Context varsa mesaja önce ekle
             if context:
-                full_message = f"{context}\n\nKullanıcı mesajı: {message}"
+                full_message = f"{context}\n\n{message}"
             else:
                 full_message = message
             

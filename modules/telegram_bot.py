@@ -33,6 +33,25 @@ DEFAULT_AI_CONTEXT = (
     "(/not_ekle, /gorev_ekle gibi)."
 )
 
+# Komut önerisi için anahtar kelimeler ve önceden derlenmiş regex pattern'leri
+COMMAND_HINTS = {
+    'not ekle': ('/not_ekle', re.compile(r'\bnot ekle\b')),
+    'not sil': ('/not_sil', re.compile(r'\bnot sil\b')),
+    'notlarım': ('/notlar', re.compile(r'\bnotlarım\b')),
+    'notları göster': ('/notlar', re.compile(r'\bnotları göster\b')),
+    'not ara': ('/not_ara', re.compile(r'\bnot ara\b')),
+    'görev ekle': ('/gorev_ekle', re.compile(r'\bgörev ekle\b')),
+    'görev sil': ('/gorev_sil', re.compile(r'\bgörev sil\b')),
+    'görevlerim': ('/gorevler', re.compile(r'\bgörevlerim\b')),
+    'görevleri göster': ('/gorevler', re.compile(r'\bgörevleri göster\b')),
+    'bugünkü görevler': ('/bugun', re.compile(r'\bbugünkü görevler\b')),
+    'görev tamamla': ('/gorev_tamamla', re.compile(r'\bgörev tamamla\b')),
+    'hatırlatıcı': ('/hatirlatici', re.compile(r'\bhatırlatıcı\b')),
+    'hatırlatıcı ekle': ('/hatirlatici', re.compile(r'\bhatırlatıcı ekle\b')),
+    'yardım': ('/yardim', re.compile(r'\byardım\b')),
+    'komutlar': ('/yardim', re.compile(r'\bkomutlar\b')),
+}
+
 
 class TelegramBot:
     """Telegram Bot Sınıfı"""
@@ -455,34 +474,12 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         user_message = update.message.text.strip()
         user_id = update.effective_user.id
         
-        # Komut benzeri anahtar kelimeler
-        command_hints = {
-            'not ekle': '/not_ekle',
-            'not sil': '/not_sil',
-            'notlarım': '/notlar',
-            'notları göster': '/notlar',
-            'not ara': '/not_ara',
-            'görev ekle': '/gorev_ekle',
-            'görev sil': '/gorev_sil',
-            'görevlerim': '/gorevler',
-            'görevleri göster': '/gorevler',
-            'bugünkü görevler': '/bugun',
-            'görev tamamla': '/gorev_tamamla',
-            'hatırlatıcı': '/hatirlatici',
-            'hatırlatıcı ekle': '/hatirlatici',
-            'yardım': '/yardim',
-            'komutlar': '/yardim',
-        }
-        
         # Mesajı küçük harfe çevir kontrol için
         lower_message = user_message.lower()
         
-        # Komut benzeri mi kontrol et (word boundary ile daha hassas eşleşme)
-        for hint, command in command_hints.items():
-            # Kelime sınırları ile eşleşme kontrolü
-            # \b ile kelimenin başında ve sonunda sınır olup olmadığını kontrol et
-            pattern = r'\b' + re.escape(hint) + r'\b'
-            if re.search(pattern, lower_message):
+        # Komut benzeri mi kontrol et (önceden derlenmiş pattern'ler ile)
+        for hint, (command, pattern) in COMMAND_HINTS.items():
+            if pattern.search(lower_message):
                 await update.message.reply_text(
                     f"💡 Bunu mu demek istediniz?\n\n"
                     f"Komut: `{command}`\n\n"
