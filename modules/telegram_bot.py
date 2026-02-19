@@ -37,7 +37,8 @@ class TelegramBot:
     )
     
     def __init__(self, db_manager: DatabaseManager, ai_assistant: AIAssistant,
-                 notes_manager: NotesManager, schedule_manager: ScheduleManager):
+                 notes_manager: NotesManager, schedule_manager: ScheduleManager,
+                 deepai_api_key: str = None):
         """
         Telegram bot'u başlat
         
@@ -46,11 +47,26 @@ class TelegramBot:
             ai_assistant: AI asistan
             notes_manager: Not yöneticisi
             schedule_manager: Ajanda yöneticisi
+            deepai_api_key: DeepAI API key (opsiyonel)
         """
         self.db_manager = db_manager
         self.ai_assistant = ai_assistant
         self.notes_manager = notes_manager
         self.schedule_manager = schedule_manager
+        
+        # Görüntü işleme modülleri (eğer API key varsa)
+        self.image_upscaler = None
+        self.image_handler = None
+        
+        if deepai_api_key:
+            from modules.image_upscaler import ImageUpscaler
+            from modules.image_handler import TelegramImageHandler
+            
+            self.image_upscaler = ImageUpscaler(deepai_api_key)
+            self.image_handler = TelegramImageHandler()
+            logger.info("✅ Görüntü yükseltme modülleri başlatıldı")
+        else:
+            logger.warning("⚠️ DEEPAI_API_KEY bulunamadı. Görüntü yükseltme özellikleri çalışmayacak.")
         
         if not TELEGRAM_BOT_TOKEN:
             raise ValueError("TELEGRAM_BOT_TOKEN bulunamadı!")
@@ -79,6 +95,18 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("gorev_tamamla", self.complete_task_command))
         self.application.add_handler(CommandHandler("gorev_sil", self.delete_task_command))
         self.application.add_handler(CommandHandler("hatirlatici", self.add_reminder_command))
+        
+        # Görüntü yükseltme komutları (eğer özellik aktifse)
+        if self.image_upscaler:
+            self.application.add_handler(CommandHandler("upscale", self.upscale_command))
+            self.application.add_handler(CommandHandler("upscale_yardim", self.upscale_help))
+            
+            # Photo handler
+            self.application.add_handler(
+                MessageHandler(filters.PHOTO, self.handle_photo)
+            )
+            
+            logger.info("✅ Görüntü yükseltme komutları kaydedildi")
         
         # Callback handler (inline butonlar için)
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -154,7 +182,17 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
 
 *Hatırlatıcı:*
 /hatirlatici [mesaj] [tarih/saat] - Hatırlatıcı ekle
-
+"""
+        
+        # Görüntü yükseltme komutları ekle (eğer özellik aktifse)
+        if self.image_upscaler:
+            help_text += """
+*🎨 Görüntü Yükseltme:*
+/upscale - Fotoğraf kalitesini artır (2x)
+/upscale_yardim - Detaylı bilgi
+"""
+        
+        help_text += """
 *Diğer:*
 /start - Bot'u başlat
 /yardim - Bu yardım mesajı
@@ -507,6 +545,166 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                 "😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.\n\n"
                 "Komutları görmek için: /yardim"
             )
+    
+    async def upscale_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Görüntü yükseltme komutu"""
+        if not self.image_upscaler:
+            await update.message.reply_text(
+                "❌ Görüntü yükseltme özelliği şu anda kullanılamıyor.\n"
+                "Lütfen daha sonra tekrar deneyin."
+            )
+            return
+        
+        user_id = update.effective_user.id
+        
+        # Kullanıcıya talimat ver
+        await update.message.reply_text(
+            "📸 Lütfen kalitesini artırmak istediğiniz eşarp fotoğrafını gönderin.\n\n"
+            "✨ Çözünürlük 2x artırılacak!\n"
+            "⏱️ İşlem 20-30 saniye sürer."
+        )
+        
+        # Kullanıcı state'ini ayarla
+        context.user_data['waiting_for_upscale_photo'] = True
+    
+    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Fotoğraf mesajlarını işle"""
+        user_id = update.effective_user.id
+        
+        # Upscale bekleniyor mu?
+        if context.user_data.get('waiting_for_upscale_photo'):
+            await self.process_upscale_photo(update, context)
+            context.user_data['waiting_for_upscale_photo'] = False
+            return
+        
+        # Genel fotoğraf analizi
+        if self.image_upscaler:
+            await update.message.reply_text(
+                "📸 Fotoğraf aldım!\n\n"
+                "Ne yapmak istersiniz?\n"
+                "/upscale - Kaliteyi artır (2x)"
+            )
+        else:
+            await update.message.reply_text(
+                "📸 Fotoğraf aldım! Ancak görüntü işleme özellikleri şu anda kullanılamıyor."
+            )
+    
+    async def process_upscale_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Upscale işlemini gerçekleştir"""
+        user_id = update.effective_user.id
+        
+        try:
+            # İlerleme mesajı
+            progress_msg = await update.message.reply_text(
+                "🔄 İşleniyor...\n"
+                "⏱️ Bu 20-30 saniye sürebilir, lütfen bekleyin."
+            )
+            
+            # En yüksek çözünürlüklü fotoğrafı al
+            photo = update.message.photo[-1]
+            photo_file = await photo.get_file()
+            
+            # Görüntü bilgilerini göster
+            file_size_mb = photo_file.file_size / (1024 * 1024)
+            await progress_msg.edit_text(
+                f"📸 Fotoğraf bilgileri:\n"
+                f"📊 Boyut: {photo.width}x{photo.height}\n"
+                f"💾 Dosya: {file_size_mb:.2f} MB\n\n"
+                f"🔄 Yükseltiliyor..."
+            )
+            
+            # Fotoğrafı indir
+            input_path = await self.image_handler.download_photo(photo_file, user_id)
+            
+            # Upscale işlemi
+            output_url = self.image_upscaler.upscale_image(input_path)
+            
+            if not output_url:
+                await progress_msg.edit_text(
+                    "❌ Üzgünüm, görüntü işlenemedi.\n"
+                    "Lütfen farklı bir fotoğraf deneyin."
+                )
+                self.image_handler.cleanup_file(input_path)
+                return
+            
+            # Yükseltilmiş görüntüyü indir
+            output_path = input_path.replace('.jpg', '_upscaled.jpg')
+            success = self.image_upscaler.download_image(output_url, output_path)
+            
+            if not success:
+                await progress_msg.edit_text("❌ Görüntü indirilemedi.")
+                self.image_handler.cleanup_file(input_path)
+                return
+            
+            # Sonuç bilgileri
+            from PIL import Image
+            with Image.open(output_path) as img:
+                new_width, new_height = img.size
+            
+            # Yükseltilmiş fotoğrafı gönder
+            with open(output_path, 'rb') as photo_file:
+                await update.message.reply_photo(
+                    photo=photo_file,
+                    caption=(
+                        f"✨ Görüntü yükseltildi!\n\n"
+                        f"📊 Öncesi: {photo.width}x{photo.height}\n"
+                        f"📊 Sonrası: {new_width}x{new_height}\n"
+                        f"🎨 Kalite artışı: ~2x\n\n"
+                        f"💡 Başka bir fotoğraf için /upscale yazın."
+                    )
+                )
+            
+            # İlerleme mesajını sil
+            await progress_msg.delete()
+            
+            # Geçici dosyaları temizle
+            self.image_handler.cleanup_file(input_path)
+            self.image_handler.cleanup_file(output_path)
+            
+            logger.info(f"Upscale tamamlandı - User: {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Upscale hatası: {e}")
+            await update.message.reply_text(
+                "😔 Bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                "İpuçları:\n"
+                "- Fotoğraf 10MB'dan küçük olmalı\n"
+                "- JPG veya PNG formatında olmalı"
+            )
+    
+    async def upscale_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Upscale yardım komutu"""
+        help_text = """
+🎨 **Görüntü Yükseltme Sistemi**
+
+📸 **Komutlar:**
+/upscale - Fotoğraf kalitesini artır (2x)
+/upscale_yardim - Bu yardım mesajı
+
+✨ **Nasıl Kullanılır:**
+1. /upscale komutunu yazın
+2. Eşarp fotoğrafınızı gönderin
+3. 20-30 saniye bekleyin
+4. Yüksek kaliteli fotoğrafı alın!
+
+📊 **Özellikler:**
+- 2x çözünürlük artırma
+- Netlik iyileştirme
+- Renk canlandırma
+- Gürültü azaltma
+
+⚠️ **Limitler:**
+- Max dosya boyutu: 10 MB
+- Aylık limit: 500 fotoğraf
+- Format: JPG, PNG
+
+💡 **İpuçları:**
+- Daha iyi sonuç için iyi aydınlatmalı fotoğraflar kullanın
+- Çok bulanık fotoğraflar tam düzelmeyebilir
+- İşlem 20-30 saniye sürer, sabırlı olun
+"""
+        
+        await update.message.reply_text(help_text, parse_mode='Markdown')
     
     async def send_reminder_notification(self, telegram_id: int, message: str):
         """
