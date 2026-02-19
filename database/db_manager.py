@@ -501,13 +501,26 @@ class DatabaseManager:
             
             # Gemini API format: role must be 'user' or 'model' 
             # Map 'assistant' -> 'model' for compatibility
-            return [
-                {
-                    'role': 'model' if msg.role == 'assistant' else msg.role, 
+            result = []
+            for msg in messages:
+                # Normalize role to Gemini-compatible values
+                if msg.role == 'assistant':
+                    role = 'model'
+                elif msg.role == 'user':
+                    role = 'user'
+                elif msg.role == 'model':
+                    role = 'model'
+                else:
+                    # Skip invalid roles to prevent API errors
+                    logger.warning(f"Skipping message with invalid role: {msg.role}")
+                    continue
+                
+                result.append({
+                    'role': role,
                     'parts': [{'text': msg.message}]
-                }
-                for msg in messages
-            ]
+                })
+            
+            return result
         except SQLAlchemyError as e:
             logger.error(f"Sohbet geçmişi getirme hatası: {e}")
             return []

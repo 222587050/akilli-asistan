@@ -43,6 +43,9 @@ class AIAssistant:
             ]
             
             # Sistem yönergesi (Türkçe AI asistan davranışı)
+            # Note: System instruction is defined here (not in config) because it's
+            # integral to the GenerativeModel initialization and Gemini API requires
+            # it at model creation time, not as part of message history
             system_instruction = """Sen yardımsever bir Türkçe asistansın. Öğrencilere ders konularında yardımcı oluyorsun.
 Görevlerin:
 - Ders sorularını açık ve anlaşılır şekilde yanıtlamak
