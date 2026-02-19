@@ -3,6 +3,7 @@ Telegram Bot Arayüzü
 Kullanıcı etkileşimi için komut tabanlı bot
 """
 import logging
+import re
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -22,6 +23,15 @@ from modules.schedule_manager import ScheduleManager
 from utils.helpers import format_note_list, format_task_list, format_date
 
 logger = logging.getLogger(__name__)
+
+# AI asistan için varsayılan context bilgisi
+DEFAULT_AI_CONTEXT = (
+    "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
+    "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
+    "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
+    "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
+    "(/not_ekle, /gorev_ekle gibi)."
+)
 
 
 class TelegramBot:
@@ -467,9 +477,12 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
         # Mesajı küçük harfe çevir kontrol için
         lower_message = user_message.lower()
         
-        # Komut benzeri mi kontrol et
+        # Komut benzeri mi kontrol et (word boundary ile daha hassas eşleşme)
         for hint, command in command_hints.items():
-            if hint in lower_message:
+            # Kelime sınırları ile eşleşme kontrolü
+            # \b ile kelimenin başında ve sonunda sınır olup olmadığını kontrol et
+            pattern = r'\b' + re.escape(hint) + r'\b'
+            if re.search(pattern, lower_message):
                 await update.message.reply_text(
                     f"💡 Bunu mu demek istediniz?\n\n"
                     f"Komut: `{command}`\n\n"
@@ -483,16 +496,8 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
             # "Yazıyor..." göstergesi
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             
-            # AI context oluştur
-            context_info = (
-                "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
-                "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
-                "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
-                "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
-                "(/not_ekle, /gorev_ekle gibi)."
-            )
-            
-            ai_response = self.ai_assistant.chat(user_id, user_message, context=context_info)
+            # Varsayılan AI context kullan
+            ai_response = self.ai_assistant.chat(user_id, user_message, context=DEFAULT_AI_CONTEXT)
             
             await update.message.reply_text(ai_response)
             
