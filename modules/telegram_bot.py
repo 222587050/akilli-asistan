@@ -658,10 +658,7 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
                 caption = (
                     f"✨ Görüntü yükseltildi!\n\n"
                     f"📊 Öncesi: {photo.width}x{photo.height}\n"
-                )
-                if dimensions_info:
-                    caption += dimensions_info
-                caption += (
+                    f"{dimensions_info}"
                     f"🎨 Kalite artışı: ~2x\n\n"
                     f"💡 Başka bir fotoğraf için /upscale yazın."
                 )
@@ -692,29 +689,29 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
     async def upscale_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Upscale yardım komutu"""
         help_text = """
-🎨 **Görüntü Yükseltme Sistemi**
+🎨 *Görüntü Yükseltme Sistemi*
 
-📸 **Komutlar:**
+📸 *Komutlar:*
 /upscale - Fotoğraf kalitesini artır (2x)
 /upscale_yardim - Bu yardım mesajı
 
-✨ **Nasıl Kullanılır:**
+✨ *Nasıl Kullanılır:*
 1. /upscale komutunu yazın
 2. Fotoğrafınızı gönderin
 3. 20-30 saniye bekleyin
 4. Yüksek kaliteli fotoğrafı alın!
 
-📊 **Özellikler:**
+📊 *Özellikler:*
 - 2x çözünürlük artırma
 - Netlik iyileştirme
 - Renk canlandırma
 - Gürültü azaltma
 
-⚠️ **Limitler:**
+⚠️ *Limitler:*
 - Max dosya boyutu: 10 MB
 - Format: JPG, PNG
 
-💡 **İpuçları:**
+💡 *İpuçları:*
 - Daha iyi sonuç için iyi aydınlatmalı fotoğraflar kullanın
 - Çok bulanık fotoğraflar tam düzelmeyebilir
 - İşlem 20-30 saniye sürer, sabırlı olun
