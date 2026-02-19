@@ -11,6 +11,7 @@ from pathlib import Path
 from config import check_config, logger, REPLICATE_API_TOKEN
 from database import DatabaseManager
 from modules.ai_assistant import AIAssistant
+from modules.ai_teacher import AITeacher
 from modules.notes_manager import NotesManager
 from modules.schedule_manager import ScheduleManager
 from modules.telegram_bot import TelegramBot
@@ -112,6 +113,14 @@ def initialize_components():
     ai_assistant = AIAssistant(db_manager)
     if not ai_assistant.is_available():
         logger.warning("AI asistan kullanılamıyor. GEMINI_API_KEY kontrol edin.")
+
+    # AI Öğretmen'i başlat (mevcut Gemini modelini kullan)
+    ai_teacher = None
+    if ai_assistant.is_available():
+        ai_teacher = AITeacher(ai_assistant.model)
+        logger.info("✅ AI Öğretmen başlatıldı")
+    else:
+        logger.warning("⚠️ AI Öğretmen başlatılamadı (AI asistan kullanılamıyor)")
     
     # Not yöneticisini başlat
     notes_manager = NotesManager(db_manager)
@@ -125,7 +134,8 @@ def initialize_components():
         ai_assistant=ai_assistant,
         notes_manager=notes_manager,
         schedule_manager=schedule_manager,
-        replicate_api_token=REPLICATE_API_TOKEN
+        replicate_api_token=REPLICATE_API_TOKEN,
+        ai_teacher=ai_teacher,
     )
     
     # Hatırlatıcı zamanlayıcısını başlat
