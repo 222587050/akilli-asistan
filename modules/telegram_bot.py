@@ -3,6 +3,7 @@ Telegram Bot Arayüzü
 Kullanıcı etkileşimi için komut tabanlı bot
 """
 import logging
+import re
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -29,6 +30,34 @@ from modules.schedule_manager import ScheduleManager
 from utils.helpers import format_note_list, format_task_list, format_date
 
 logger = logging.getLogger(__name__)
+
+# AI asistan için varsayılan context bilgisi
+DEFAULT_AI_CONTEXT = (
+    "Sen Türkçe konuşan akıllı bir kişisel asistansın. "
+    "Kullanıcılara ders konularında, not almada ve görev yönetiminde yardımcı oluyorsun. "
+    "Dostça, açık ve anlaşılır cevaplar veriyorsun. "
+    "Eğer kullanıcı not veya görev eklemek istiyorsa, ilgili komutları öner "
+    "(/not_ekle, /gorev_ekle gibi)."
+)
+
+# Komut önerisi için anahtar kelimeler ve önceden derlenmiş regex pattern'leri
+COMMAND_HINTS = {
+    'not ekle': ('/not_ekle', re.compile(r'\bnot ekle\b')),
+    'not sil': ('/not_sil', re.compile(r'\bnot sil\b')),
+    'notlarım': ('/notlar', re.compile(r'\bnotlarım\b')),
+    'notları göster': ('/notlar', re.compile(r'\bnotları göster\b')),
+    'not ara': ('/not_ara', re.compile(r'\bnot ara\b')),
+    'görev ekle': ('/gorev_ekle', re.compile(r'\bgörev ekle\b')),
+    'görev sil': ('/gorev_sil', re.compile(r'\bgörev sil\b')),
+    'görevlerim': ('/gorevler', re.compile(r'\bgörevlerim\b')),
+    'görevleri göster': ('/gorevler', re.compile(r'\bgörevleri göster\b')),
+    'bugünkü görevler': ('/bugun', re.compile(r'\bbugünkü görevler\b')),
+    'görev tamamla': ('/gorev_tamamla', re.compile(r'\bgörev tamamla\b')),
+    'hatırlatıcı': ('/hatirlatici', re.compile(r'\bhatırlatıcı\b')),
+    'hatırlatıcı ekle': ('/hatirlatici', re.compile(r'\bhatırlatıcı ekle\b')),
+    'yardım': ('/yardim', re.compile(r'\byardım\b')),
+    'komutlar': ('/yardim', re.compile(r'\bkomutlar\b')),
+}
 
 
 class TelegramBot:
@@ -1381,6 +1410,48 @@ Kullanılabilir komutları görmek için /yardim yazabilirsin!
 """
         
         await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Normal mesajları akıllıca işle
+        - Komut benzeri mesajları tespit et ve yönlendir
+        - Diğer mesajları AI'ya gönder
+        """
+        user_message = update.message.text.strip()
+        user_id = update.effective_user.id
+        
+        # Mesajı küçük harfe çevir kontrol için
+        lower_message = user_message.lower()
+        
+        # Komut benzeri mi kontrol et (önceden derlenmiş pattern'ler ile)
+        for trigger_phrase, (command, pattern) in COMMAND_HINTS.items():
+            if pattern.search(lower_message):
+                await update.message.reply_text(
+                    f"💡 Bunu mu demek istediniz?\n\n"
+                    f"Komut: `{command}`\n\n"
+                    f"Kullanım için /yardim yazabilirsiniz.",
+                    parse_mode='Markdown'
+                )
+                return
+        
+        # Normal mesaj ise AI'ya gönder
+        try:
+            # "Yazıyor..." göstergesi
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            
+            # Varsayılan AI context kullan
+            ai_response = self.ai_assistant.chat(user_id, user_message, context=DEFAULT_AI_CONTEXT)
+            
+            await update.message.reply_text(ai_response)
+            
+            logger.info(f"Normal mesaj işlendi - User: {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Mesaj işleme hatası: {e}")
+            await update.message.reply_text(
+                "😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                "Komutları görmek için: /yardim"
+            )
     
     async def send_reminder_notification(self, telegram_id: int, message: str):
         """
